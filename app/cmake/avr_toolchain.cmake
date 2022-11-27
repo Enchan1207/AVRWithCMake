@@ -105,12 +105,8 @@ endif()
 # # custom macros
 # #
 
-# add_executable
-macro(add_executable_avr target_name)
-    add_executable(${target_name}
-        ${ARGN}
-    )
-
+# configure target for AVR
+macro(target_configure_for_avr target_name)
     set_target_properties(${target_name} PROPERTIES
         COMPILE_FLAGS "${COMPILER_FLAGS}"
         LINK_FLAGS "${LINKER_FLAGS}"
@@ -122,9 +118,15 @@ macro(add_executable_avr target_name)
 
     target_link_directories(${target_name} PUBLIC
         ${AVRGCC_ROOT}/avr/lib
-    )
+    )   
+endmacro()
 
-    # flash
+# add_executable
+macro(add_executable_avr target_name)
+    add_executable(${target_name})
+    target_configure_for_avr(${target_name})
+
+    # add flash target
     if(DEFINED AVRDUDE_PORT)
         add_custom_target(flash-${target_name}
             COMMAND ${AVRDUDE}
@@ -136,25 +138,10 @@ macro(add_executable_avr target_name)
     else()
         message(WARNING "uploading port is not specified (AVRDUDE_PORT is not set). flash target won't be created.")
     endif()
-
 endmacro()
 
 # add_library
 macro(add_library_avr target_name)
-    add_library(${target_name}
-        ${ARGN}
-    )
-
-    set_target_properties(${target_name} PROPERTIES
-        COMPILE_FLAGS "${COMPILER_FLAGS}"
-        LINK_FLAGS "${LINKER_FLAGS}"
-    )
-
-    target_include_directories(${target_name} PUBLIC
-        ${AVRGCC_ROOT}/avr/include
-    )
-
-    target_link_directories(${target_name} PUBLIC
-        ${AVRGCC_ROOT}/avr/lib
-    )
+    add_library(${target_name})
+    target_configure_for_avr(${target_name})
 endmacro()
