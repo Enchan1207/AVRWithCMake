@@ -35,20 +35,25 @@ if(NOT EXISTS ${ARDUINOCLI_ROOT})
     )
 endif()
 
-# Find avr-gcc variants from arduino-cli
+# Find each tools variants from arduino-cli
 file(GLOB AVRGCC_VARIANTS ${ARDUINOCLI_ROOT}/packages/arduino/tools/avr-gcc/*)
+file(GLOB AVRDUDE_VARIANTS ${ARDUINOCLI_ROOT}/packages/arduino/tools/avrdude/*)
 
 # If multiple variants hit, choose latest version
-set(AVRGCC_VARIANTS_COUNT 0)
-list(LENGTH AVRGCC_VARIANTS AVRGCC_VARIANTS_COUNT)
 list(SORT AVRGCC_VARIANTS ORDER DESCENDING)
+list(SORT AVRDUDE_VARIANTS ORDER DESCENDING)
 list(GET AVRGCC_VARIANTS 0 AVRGCC_ROOT)
+list(GET AVRDUDE_VARIANTS 0 AVRDUDE_ROOT)
 
 if(NOT AVRGCC_ROOT)
-    message(FATAL_ERROR "AVR toolchain not found.")
+    message(FATAL_ERROR "avr-gcc and some commands couldn't found.")
+endif()
+if(NOT AVRDUDE_ROOT)
+    message(FATAL_ERROR "avrdude couldn't found.")
 endif()
 
-set(AVR_TOOLCHAIN_ROOT ${AVRGCC_ROOT}/bin)
+set(AVRGCC_BIN ${AVRGCC_ROOT}/bin)
+set(AVRDUDE_BIN ${AVRDUDE_ROOT}/bin)
 
 # #
 # # configure CMake for AVR
@@ -59,17 +64,19 @@ set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR avr)
 set(CMAKE_CROSS_COMPILING 1)
 
-set(CMAKE_C_COMPILER "${AVR_TOOLCHAIN_ROOT}/avr-gcc" CACHE PATH "gcc" FORCE)
-set(CMAKE_CXX_COMPILER "${AVR_TOOLCHAIN_ROOT}/avr-g++" CACHE PATH "g++" FORCE)
-set(CMAKE_LINKER "${AVR_TOOLCHAIN_ROOT}/avr-ld" CACHE PATH "linker" FORCE)
+set(CMAKE_C_COMPILER "${AVRGCC_BIN}/avr-gcc" CACHE PATH "gcc" FORCE)
+set(CMAKE_CXX_COMPILER "${AVRGCC_BIN}/avr-g++" CACHE PATH "g++" FORCE)
+set(CMAKE_LINKER "${AVRGCC_BIN}/avr-ld" CACHE PATH "linker" FORCE)
 
-set(CMAKE_NM "${AVR_TOOLCHAIN_ROOT}/avr-nm" CACHE PATH "nm" FORCE)
-set(CMAKE_OBJCOPY "${AVR_TOOLCHAIN_ROOT}/avr-objcopy" CACHE PATH "objcopy" FORCE)
-set(CMAKE_OBJDUMP "${AVR_TOOLCHAIN_ROOT}/avr-objdump" CACHE PATH "objdump" FORCE)
+set(CMAKE_NM "${AVRGCC_BIN}/avr-nm" CACHE PATH "nm" FORCE)
+set(CMAKE_OBJCOPY "${AVRGCC_BIN}/avr-objcopy" CACHE PATH "objcopy" FORCE)
+set(CMAKE_OBJDUMP "${AVRGCC_BIN}/avr-objdump" CACHE PATH "objdump" FORCE)
 
-set(CMAKE_AR "${AVR_TOOLCHAIN_ROOT}/avr-ar" CACHE PATH "ar" FORCE)
-set(CMAKE_STRIP "${AVR_TOOLCHAIN_ROOT}/avr-strip" CACHE PATH "strip" FORCE)
-set(CMAKE_RANLIB "${AVR_TOOLCHAIN_ROOT}/avr-ranlib" CACHE PATH "ranlib" FORCE)
+set(CMAKE_AR "${AVRGCC_BIN}/avr-ar" CACHE PATH "ar" FORCE)
+set(CMAKE_STRIP "${AVRGCC_BIN}/avr-strip" CACHE PATH "strip" FORCE)
+set(CMAKE_RANLIB "${AVRGCC_BIN}/avr-ranlib" CACHE PATH "ranlib" FORCE)
+
+set(AVRDUDE "${AVRDUDE_BIN}/avrdude" CACHE PATH "avrdude" FORCE)
 
 # compiler flags
 set(COMMON_FLAGS "-mmcu=${AVR_MCU} -DF_CPU=${AVR_FCPU}")
@@ -82,6 +89,17 @@ endif()
 
 set(COMPILER_FLAGS "${COMMON_FLAGS} ${OPTIMIZATION_FLAGS}")
 set(LINKER_FLAGS "${COMMON_FLAGS} -lc")
+
+# avrdude settings
+set(AVRDUDE_CONF ${AVRDUDE_ROOT}/etc/avrdude.conf)
+
+if(NOT AVRDUDE_BAUDRATE)
+    set(AVRDUDE_BAUDRATE 19200)
+endif()
+
+if(NOT AVRDUDE_PROGRAMMER)
+    set(AVRDUDE_PROGRAMMER "avrisp")
+endif()
 
 # #
 # # custom macros
@@ -105,6 +123,20 @@ macro(add_executable_avr target_name)
     target_link_directories(${target_name} PUBLIC
         ${AVRGCC_ROOT}/avr/lib
     )
+
+    # flash
+    if(DEFINED AVRDUDE_PORT)
+        add_custom_target(flash-${target_name}
+            COMMAND ${AVRDUDE}
+                -C ${AVRDUDE_CONF}
+                -c ${AVRDUDE_PROGRAMMER} -b ${AVRDUDE_BAUDRATE} -P ${AVRDUDE_PORT}
+                -p ${AVRDUDE_MCU} -U flash:w:${target_name}
+            DEPENDS ${target_name}
+        )
+    else()
+        message(WARNING "uploading port is not specified (AVRDUDE_PORT is not set). flash target won't be created.")
+    endif()
+
 endmacro()
 
 # add_library
