@@ -1,0 +1,14 @@
+#
+#
+#
+version: "3"
+
+services:
+  cmake_avr:
+    container_name: cmake_avr_container
+    build:
+      context: .
+      dockerfile: Dockerfile
+    tty: true
+    volumes:
+      - ./app:/app
